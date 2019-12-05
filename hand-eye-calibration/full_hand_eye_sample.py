@@ -2,7 +2,6 @@
 Script to set up communication, generate dataset and perform hand-eye calibration.
 """
 from pathlib import Path
-# mport sys
 import time
 import datetime
 import zivid
@@ -42,6 +41,16 @@ def quat2rotm(quat: np.array) -> np.array:
 
 
 def rotvec2quat(rotvec: np.array, angle: float = np.nan) -> np.array:
+    """Convert from rotation vector to quaternions
+
+    Args:
+        rotvec: Rotation vector
+        angle: Angle of rotation
+
+    Returns:
+        quat: Rotation in quaternions
+
+    """
     if np.isnan(angle):
         angle = np.linalg.norm(rotvec)
 
@@ -57,7 +66,7 @@ def rotvec2quat(rotvec: np.array, angle: float = np.nan) -> np.array:
 
 
 def _calculate_transform_matrix(robot_pose_before: np.array, robot_pose_after: np.array) -> np.array:
-    """ Compute transform matrix based on poses
+    """Compute transform matrix based on poses
 
     Args:
         robot_pose_before: Pose of robot taken right before image was captured
@@ -78,7 +87,7 @@ def _calculate_transform_matrix(robot_pose_before: np.array, robot_pose_after: n
 
 
 def _write_robot_state(con: rtde, input_data, finish_capture: bool = False, camera_ready: bool = False) -> None:
-    """ Write to robot I/O registrer
+    """Write to robot I/O registrer
 
     Args:
         con: connection between computer and robot
@@ -101,7 +110,7 @@ def _write_robot_state(con: rtde, input_data, finish_capture: bool = False, came
 
 
 def _initialize_robot_sync(host: str, port: int):
-    """Set up communication with UR robot.
+    """Set up communication with UR robot
 
     Args:
         host: IP address to host
@@ -110,9 +119,9 @@ def _initialize_robot_sync(host: str, port: int):
         con: connection to robot
         input_data: recipe with input data to robot
     """
-    conf = rtde_config.ConfigFile(Path(Path.cwd() / 'robot_communication_file.xml'))
-    output_names, output_types = conf.get_recipe('out')
-    input_names, input_types = conf.get_recipe('in')
+    conf = rtde_config.ConfigFile(Path(Path.cwd() / "robot_communication_file.xml"))
+    output_names, output_types = conf.get_recipe("out")
+    input_names, input_types = conf.get_recipe("in")
 
     # Rtde communication is by default port 30004.
     con = rtde.RTDE(host, port)
@@ -120,7 +129,7 @@ def _initialize_robot_sync(host: str, port: int):
 
     # To ensure that the application and further versions of UR controller is compatible
     if not con.negotiate_protocol_version():
-        raise Exception(f"Protocol do not match.")
+        raise Exception(f"Protocol do not match")
 
     if not con.send_output_setup(output_names, output_types, frequency=200):
         raise Exception(f"Unable to configure output")
@@ -136,7 +145,7 @@ def _initialize_robot_sync(host: str, port: int):
 
 
 def _save_zdf_and_pose(save_dir: Path, image_num: int, frame: zivid.Frame, transform: np.array) -> None:
-    """ Save data to folder
+    """Save data to folder
 
     Args:
         save_dir: Directory to save data
@@ -152,12 +161,12 @@ def _save_zdf_and_pose(save_dir: Path, image_num: int, frame: zivid.Frame, trans
 
 
 def _generate_folder() -> Path:
-    """ Generate folder where dataset weill be stored
+    """Generate folder where dataset weill be stored
 
     Return:
         location_dir: The directory to save data
     """
-    location_dir = Path(Path.cwd() / 'datasets' / datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    location_dir = Path(Path.cwd() / "datasets" / datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     if not location_dir.is_dir():
         location_dir.mkdir(parents=True)
 
@@ -165,7 +174,7 @@ def _generate_folder() -> Path:
 
 
 def _capture_and_get_robot_pose(con: rtde, cam: zivid.Camera) -> (zivid.Frame, int, np.array, np.array):
-    """ Capture image with Zivid camera and read robot pose.
+    """Capture image with Zivid camera and read robot pose
 
     Args:
         con: Connection to robot arm
@@ -187,7 +196,7 @@ def _capture_and_get_robot_pose(con: rtde, cam: zivid.Camera) -> (zivid.Frame, i
 
 
 def _set_camera_settings(cam: zivid.Camera) -> None:
-    """ Set camera settings
+    """Set camera settings
 
     Args:
         cam: Zivid camera
@@ -202,7 +211,7 @@ def _set_camera_settings(cam: zivid.Camera) -> None:
 
 
 def _read_robot_state(con: rtde) -> (int, np.array):
-    """ Recieve robot output recipe
+    """Recieve robot output recipe
 
     Args:
         con: Connection to robot arm
@@ -235,6 +244,14 @@ def pose_from_datastring(datastring: str) -> zivid.handeye.Pose:
 
 
 def _save_hand_eye_results(save_dir: Path, transform: np.array, residuals: list) -> None:
+    """Save transformation and residuals to folder
+
+    Args:
+        save_dir: Path to where data will be saved
+        transform: 4x4 transformation matrix
+        residuals: list of residuals
+
+    """
     file_storage_transform = cv2.FileStorage(str(save_dir / f"transformation.yaml"), cv2.FILE_STORAGE_WRITE)
     file_storage_transform.write("PoseState", transform)
     file_storage_transform.release()
@@ -245,7 +262,7 @@ def _save_hand_eye_results(save_dir: Path, transform: np.array, residuals: list)
         tmp = list([residual.translation, residual.translation])
         residual_list.append(tmp)
 
-    file_storage_residuals.write('Per pose residuals for rotation in deg and translation in mm', np.array(residual_list))
+    file_storage_residuals.write("Per pose residuals for rotation in deg and translation in mm", np.array(residual_list))
     file_storage_residuals.release()
 
 
@@ -384,7 +401,7 @@ def _generate_dataset(con: rtde, input_data) -> Path:
 
 
 def main():
-    host = '192.168.1.246'
+    host = "192.168.1.246"
     port = 30004
     con, input_data = _initialize_robot_sync(host, port)
     con.send_start()
@@ -392,8 +409,8 @@ def main():
     dataset_dir = _generate_dataset(con, input_data)
 
     print("\n Starting hand-eye calibration \n")
-    mode = 'eye-in-hand'
-    save_dir = Path(Path().cwd() / 'datasets' / mode)
+    mode = "eye-in-hand"
+    save_dir = Path(Path().cwd() / "datasets" / mode)
     transform, residuals = perform_hand_eye_calibration(mode, save_dir)
     _save_hand_eye_results(save_dir, transform, residuals)
 
