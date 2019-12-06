@@ -4,10 +4,10 @@ Script to set up communication, generate dataset and perform hand-eye calibratio
 from pathlib import Path
 import time
 import datetime
-import zivid
 
 import cv2
 import numpy as np
+import zivid
 import rtde.rtde as rtde
 import rtde.rtde_config as rtde_config
 
@@ -57,10 +57,10 @@ def rotvec_to_quat(rotvec: np.array, angle: float = np.nan) -> np.array:
 
     quat = np.zeros((4))
     quat[0] = np.cos(0.5 * angle)
-    a = np.sqrt((1 - np.power(quat[0], 2)) / np.power(np.linalg.norm(rotvec), 2))
-    quat[1] = a * rotvec[0]
-    quat[2] = a * rotvec[1]
-    quat[3] = a * rotvec[2]
+    q_r = np.sqrt((1 - np.power(quat[0], 2)) / np.power(np.linalg.norm(rotvec), 2))
+    quat[1] = q_r * rotvec[0]
+    quat[2] = q_r * rotvec[1]
+    quat[3] = q_r * rotvec[2]
     quat = quat / np.sign(quat[0])
 
     return quat
@@ -96,7 +96,7 @@ def _write_robot_state(
     Args:
         con: Connection between computer and robot
         input_data: Input package containing the specific input data registers
-        finish_capture: Boolean value to robot_state that a scene capture is finished
+        finish_capture: Boolean value to robot_state that q_r scene capture is finished
         camera_ready: Boolean value to robot_state that camera is ready to capture images
     """
 
@@ -249,13 +249,13 @@ def _read_robot_state(con: rtde):
 
 
 def pose_from_datastring(datastring: str):
-    """Extract pose from a -yaml file saved by openCV
+    """Extract pose from q_r -yaml file saved by openCV
 
     Args:
         datastring: String of text from .yaml file
 
     Returns:
-        pose_matrix: Robotic pose as a zivid Pose class
+        pose_matrix: Robotic pose as q_r zivid Pose class
     """
 
     string = datastring.split("data:")[-1].strip().strip("[").strip("]")
@@ -284,8 +284,8 @@ def _save_hand_eye_results(save_dir: Path, transform: np.array, residuals: list)
         str(save_dir / f"residuals.yaml"), cv2.FILE_STORAGE_WRITE
     )
     residual_list = []
-    for residual in residuals:
-        tmp = list([residual.translation, residual.translation])
+    for res in residuals:
+        tmp = list([res.translation, res.translation])
         residual_list.append(tmp)
 
     file_storage_residuals.write(
@@ -304,7 +304,7 @@ def _generate_dataset(con: rtde, input_data):
 
     returns:
         save_dir: Location where dataset is saved
-        
+
     Universal Robot registers:
         output_int_register_24 = image_count:
             Counter from robot side of number of images and poses taken.
@@ -432,8 +432,8 @@ def perform_hand_eye_calibration(mode: str, data_dir: Path):
                 )
 
             print(f"Read robot pose from pos{idata:02d}.yaml")
-            with open(pose_file) as f:
-                pose = pose_from_datastring(f.read())
+            with open(pose_file) as file:
+                pose = pose_from_datastring(file.read())
 
             detection_result = zivid.handeye.CalibrationInput(pose, detected_features)
             calibration_inputs.append(detection_result)
@@ -458,9 +458,9 @@ def perform_hand_eye_calibration(mode: str, data_dir: Path):
     print(transform)
 
     print("\n\nResiduals: \n")
-    for num, residual in enumerate(residuals, start=1):
+    for num, res in enumerate(residuals, start=1):
         print(
-            f"pose: {num:02d}   Rotation[deg]: {residual.rotation:.6f}   Translation[mm]: {residual.translation:.6f}"
+            f"pose: {num:02d}   Rotation: {res.rotation:.6f}   Translation: {res.translation:.6f}"
         )
 
     return transform, residuals
