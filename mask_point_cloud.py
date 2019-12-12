@@ -117,10 +117,10 @@ def _main():
     _display_rgb(rgb)
 
     _display_depthmap(xyz)
-    _display_depthmap(xyz_masked)
-
     _display_pointcloud(rgb, xyz)
     input("Press Enter to continue...")
+
+    _display_depthmap(xyz_masked)
     _display_pointcloud(rgb, xyz_masked)
     input("Press Enter to close...")
 
