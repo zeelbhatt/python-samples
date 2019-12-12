@@ -61,7 +61,7 @@ def _get_mid_point(xyz):
     )
 
 
-def _display_pointcloud(rgb, xyz, **kwargs):
+def _display_pointcloud(rgb, xyz):
     """Display point cloud.
 
     Display the provided point cloud `xyz`, and color it with `rgb`.
