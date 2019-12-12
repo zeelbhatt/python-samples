@@ -7,6 +7,11 @@ This repository contains additional **Python** code samples for **Zivid**.
 The basic samples come with [**Zivid Python**](https://github.com/zivid/zivid-python) - the official Python package for Zivid 3D cameras.
 
 ## Samples list
+- [**Hand-eye-calibration] (https://github.com/zivid/python-samples/tree/full-hand-eye-sample/hand-eye-calibration)
+	- [**full_hand_eye_sample**] (https://github.com/zivid/python-samples/blob/full-hand-eye-sample/hand-eye-calibration/full_hand_eye_sample.py) - Generate dataset and perform hand-eye calibration on generated dataset.  
+	- **Dependencies:**
+		- [OpenCV](https://opencv.org/) version 4.0.1 or newer.
+		- [RTDE] (https://www.universal-robots.com/how-tos-and-faqs/how-to/ur-how-tos/real-time-data-exchange-rtde-guide-22229/) version 1.0 or newer.
 - [**capture_hdr_complete_settings**](https://github.com/zivid/python-samples/blob/master/capture_hdr_complete_settings.py) - Capture an HDR frame with fully configured settings for each frame.
 - [**capture_hdr_loop**](https://github.com/zivid/python-samples/blob/master/capture_hdr_loop.py) - Capture HDR frames in a loop (while actively changing some HDR settings).
 - [**capture_hdr_separate_frames**](https://github.com/zivid/python-samples/blob/master/capture_hdr_separate_frames.py) - Capture several individual frames and merge them into one HDR frame.
