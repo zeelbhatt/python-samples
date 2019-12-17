@@ -1,17 +1,16 @@
 """
 Script to generate a dataset and perform hand-eye calibration using a Universal Robot UR5e robot.
-The script communicates with the robot through TCP/IP. The host is defined by the user.
+The script communicates with the robot through TCP/IP.
 
 The entire sample consist of two additional files:
     - universal_robots_hand_eye_script.urp: Robot program script that moves between different poses.
     - robot_communication_file.xml: communication set-up file.
 
 Running the sample requires that you have universal_robots_hand_eye_script.urp on your UR5e robot,
-and robot_communication_file.xml in the same repo as this sample.
-Each robot pose must be modified to your scene. This is done in universal_robots_hand_eye_script.urp on the robot.
+and robot_communication_file.xml in the same repo as this sample. Each robot pose
+must be modified to your scene. This is done in universal_robots_hand_eye_script.urp on the robot.
 
 Further explanation of this sample is found in our knowledge base:
-Further explaination of this sample is found in our knowledge base:
 https://zivid.atlassian.net/wiki/spaces/ZividKB/pages/103481384/
 """
 from pathlib import Path
@@ -29,10 +28,10 @@ def quat_to_rotm(quat: np.array) -> np.array:
     """Convert from quaternion to rotation matrix
 
     Args:
-        quat: Rotations in quaternions
+        quat: Rotations in quaternion
 
     Returns:
-        Rotations in degrees as 3x3 rotation matrix
+        Rotation in degrees as 3x3 rotation matrix
     """
 
     q_w = quat[0]
@@ -55,14 +54,14 @@ def quat_to_rotm(quat: np.array) -> np.array:
 
 
 def rotvec_to_quat(rotvec: np.array, angle: float = None) -> np.array:
-    """Convert from rotation vector to quaternions
+    """Convert from rotation vector to quaternion
 
     Args:
         rotvec: Rotation vector
         angle: Angle of rotation
 
     Returns:
-        Rotation in quaternions
+        Rotation in quaternion
     """
 
     if angle is None:
@@ -108,18 +107,20 @@ def _initialize_robot_sync(host: str, port: int):
     """Set up communication with UR robot
 
     Args:
-        host: IP address to host
+        host: IP address
         port: Port number
 
     Returns:
         Connection to robot
-        Input package containing the specific input data registers
+        Package containing the specific input data registers
 
     Raises:
         RuntimeError: If computer is not able to establish comminucation with robot
     """
 
-    conf = rtde_config.ConfigFile(Path(Path.cwd() / "robot_communication_file.xml"))
+    conf = rtde_config.ConfigFile(
+        Path(Path.cwd() / "hand-eye-calibration" / "robot_communication_file.xml")
+    )
     output_names, output_types = conf.get_recipe("out")
     input_names, input_types = conf.get_recipe("in")
 
@@ -134,14 +135,14 @@ def _initialize_robot_sync(host: str, port: int):
     if not con.send_output_setup(output_names, output_types, frequency=200):
         raise RuntimeError(f"Unable to configure output")
 
-    input_data = con.send_input_setup(input_names, input_types)
+    robot_input_data = con.send_input_setup(input_names, input_types)
 
     if not con.send_start():
         raise RuntimeError(f"Unable to start synchronization")
 
     print("Communication initialization completed. \n")
 
-    return con, input_data
+    return con, robot_input_data
 
 
 def _save_zdf_and_pose(
@@ -193,7 +194,6 @@ def _get_frame_and_transform_matrix(con: rtde, cam: zivid.Camera):
         4x4 tranformation matrix
     """
 
-    robot_state = _read_robot_state(con)
     frame = cam.capture()
     robot_pose = np.array(con.receive().actual_TCP_pose)
 
@@ -240,13 +240,13 @@ def _read_robot_state(con: rtde):
 
 
 def pose_from_datastring(datastring: str):
-    """Extract pose from q_r -yaml file saved by openCV
+    """Extract pose from yaml file saved by openCV
 
     Args:
         datastring: String of text from .yaml file
 
     Returns:
-        Robotic pose as q_r zivid Pose class
+        Robotic pose as zivid Pose class
     """
 
     string = datastring.split("data:")[-1].strip().strip("[").strip("]")
@@ -361,7 +361,8 @@ def _capture_one_frame_and_robot_pose(
     image_num: int,
     ready_to_capture: bool,
 ):
-    """Capture 3D image and robot pose for a given robot posture, then signals robot to move to next posture
+    """Capture 3D image and robot pose for a given robot posture,
+    then signals robot to move to next posture
 
     Args:
         con: Connection between computer and robot
@@ -511,10 +512,8 @@ def perform_hand_eye_calibration(mode: str, data_dir: Path):
     print(transform)
 
     print("\n\nResiduals: \n")
-    for num, res in enumerate(residuals, start=1):
-        print(
-            f"pose: {num:02d}   Rotation: {res.rotation:.6f}   Translation: {res.translation:.6f}"
-        )
+    for res in residuals:
+        print(f"Rotation: {res.rotation:.6f}   Translation: {res.translation:.6f}")
 
     return transform, residuals
 
