@@ -13,69 +13,33 @@ must be modified to your scene. This is done in universal_robots_hand_eye_script
 Further explanation of this sample is found in our knowledge base:
 https://zivid.atlassian.net/wiki/spaces/ZividKB/pages/103481384/
 """
+import argparse
 from pathlib import Path
 import time
 import datetime
 
 import cv2
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import zivid
 import rtde.rtde as rtde
 import rtde.rtde_config as rtde_config
 
 
-def quat_to_rotm(quat: np.array) -> np.array:
-    """Convert from quaternion to rotation matrix
+def _options():
+    parser = argparse.ArgumentParser(
+        description="full_hand_eye.py [-h] [--eih] [--eth] [--ip <IP address>]",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument(
+        "--mode",
+        help="Type of calibration",
+        choices=["eih", "eye-in-hand", "eth", "eye-to-hand"],
+        required=True,
+    )
+    parser.add_argument("--ip", help="IP address to robot", required=True)
 
-    Args:
-        quat: Rotations in quaternion
-
-    Returns:
-        Rotation in degrees as 3x3 rotation matrix
-    """
-
-    q_w = quat[0]
-    q_x = quat[1]
-    q_y = quat[2]
-    q_z = quat[3]
-
-    rot_matrix = np.zeros((3, 3))
-    rot_matrix[0, 0] = 1 - 2 * np.power(q_y, 2) - 2 * np.power(q_z, 2)
-    rot_matrix[0, 1] = 2 * q_x * q_y - 2 * q_z * q_w
-    rot_matrix[0, 2] = 2 * q_x * q_z + 2 * q_y * q_w
-    rot_matrix[1, 0] = 2 * q_x * q_y + 2 * q_z * q_w
-    rot_matrix[1, 1] = 1 - 2 * np.power(q_x, 2) - 2 * np.power(q_z, 2)
-    rot_matrix[1, 2] = 2 * q_y * q_z - 2 * q_x * q_w
-    rot_matrix[2, 0] = 2 * q_x * q_z - 2 * q_y * q_w
-    rot_matrix[2, 1] = 2 * q_y * q_z + 2 * q_x * q_w
-    rot_matrix[2, 2] = 1 - 2 * np.power(q_x, 2) - 2 * np.power(q_y, 2)
-
-    return rot_matrix
-
-
-def rotvec_to_quat(rotvec: np.array, angle: float = None) -> np.array:
-    """Convert from rotation vector to quaternion
-
-    Args:
-        rotvec: Rotation vector
-        angle: Angle of rotation
-
-    Returns:
-        Rotation in quaternion
-    """
-
-    if angle is None:
-        angle = np.linalg.norm(rotvec)
-
-    quat = np.zeros((4))
-    quat[0] = np.cos(0.5 * angle)
-    q_r = np.sqrt((1 - np.power(quat[0], 2)) / np.power(np.linalg.norm(rotvec), 2))
-    quat[1] = q_r * rotvec[0]
-    quat[2] = q_r * rotvec[1]
-    quat[3] = q_r * rotvec[2]
-    quat = quat / np.sign(quat[0])
-
-    return quat
+    return parser.parse_args()
 
 
 def _write_robot_state(
@@ -118,17 +82,14 @@ def _initialize_robot_sync(host: str, port: int):
         RuntimeError: If computer is not able to establish comminucation with robot
     """
 
-    conf = rtde_config.ConfigFile(
-        Path(Path.cwd() / "hand-eye-calibration" / "robot_communication_file.xml")
-    )
+    conf = rtde_config.ConfigFile(Path(Path.cwd() / "robot_communication_file.xml"))
     output_names, output_types = conf.get_recipe("out")
     input_names, input_types = conf.get_recipe("in")
 
-    # Rtde communication is by default port 30004.
     con = rtde.RTDE(host, port)
     con.connect()
 
-    # To ensure that the application and further versions of UR controller is compatible
+    # To ensure that the application is compatable with further versions of UR controller
     if not con.negotiate_protocol_version():
         raise RuntimeError(f"Protocol do not match")
 
@@ -188,7 +149,6 @@ def _get_frame_and_transform_matrix(con: rtde, cam: zivid.Camera):
     Args:
         con: Connection between computer and robot
         cam: Zivid camera
-
     Returns:
         Zivid frame
         4x4 tranformation matrix
@@ -198,10 +158,9 @@ def _get_frame_and_transform_matrix(con: rtde, cam: zivid.Camera):
     robot_pose = np.array(con.receive().actual_TCP_pose)
 
     translation = robot_pose[:3] * 1000
-    rotvec = robot_pose[3:]
+    rotvec = R.from_rotvec(robot_pose[3:])
     transform = np.eye(4)
-    # transform[:3, :3] = R.from_quat(R.from_rotvec(rotvec).as_quat()).as_rotvec
-    transform[:3, :3] = quat_to_rotm(rotvec_to_quat(rotvec))
+    transform[:3, :3] = rotvec.as_matrix()
     transform[:3, 3] = translation.T
 
     return frame, transform
@@ -444,7 +403,7 @@ def _generate_dataset(con: rtde, input_data):
     con.send_pause()
     con.disconnect()
 
-    print(f"Data saved to: {save_dir}")
+    print(f"\n Data saved to: {save_dir}")
 
     return save_dir
 
@@ -520,17 +479,23 @@ def perform_hand_eye_calibration(mode: str, data_dir: Path):
 
 def _main():
 
-    host = "192.168.1.246"
+    user_options = _options()
+
+    robot_IP_address = user_options.ip
+    # robot_IP_address = "192.168.1.246"
     port = 30004
-    con, input_data = _initialize_robot_sync(host, port)
+    con, input_data = _initialize_robot_sync(robot_IP_address, port)
     con.send_start()
 
     dataset_dir = _generate_dataset(con, input_data)
 
-    print("\n Starting hand-eye calibration \n")
-    # mode [eye-in-hand, eye-to-hand]
-    mode = "eye-in-hand"
-    transform, residuals = perform_hand_eye_calibration(mode, dataset_dir)
+    calib_type = user_options.mode
+
+    if calib_type == "eih" or calib_type == "eye-in-hand":
+        transform, residuals = perform_hand_eye_calibration("eye-in-hand", dataset_dir)
+    elif calib_type == "eth" or calib_type == "eye-to-hand":
+        transform, residuals = perform_hand_eye_calibration("eye-to-hand", dataset_dir)
+
     _save_hand_eye_results(dataset_dir, transform, residuals)
 
 

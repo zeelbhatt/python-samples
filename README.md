@@ -12,6 +12,7 @@ The basic samples come with [**Zivid Python**](https://github.com/zivid/zivid-py
 	- **Dependencies:**
 		- [OpenCV](https://opencv.org/) version 4.0.1 or newer.
 		- [RTDE] (https://www.universal-robots.com/how-tos-and-faqs/how-to/ur-how-tos/real-time-data-exchange-rtde-guide-22229/) version 1.0 or newer.
+		- [Scipy] (https://www.scipy.org/) version 1.4.0 or newer.
 - [**capture_hdr_complete_settings**](https://github.com/zivid/python-samples/blob/master/capture_hdr_complete_settings.py) - Capture an HDR frame with fully configured settings for each frame.
 - [**capture_hdr_loop**](https://github.com/zivid/python-samples/blob/master/capture_hdr_loop.py) - Capture HDR frames in a loop (while actively changing some HDR settings).
 - [**capture_hdr_separate_frames**](https://github.com/zivid/python-samples/blob/master/capture_hdr_separate_frames.py) - Capture several individual frames and merge them into one HDR frame.
