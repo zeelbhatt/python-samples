@@ -27,6 +27,12 @@ import rtde.rtde_config as rtde_config
 
 
 def _options():
+    """Function for taking in arguments from user
+
+    Returns:
+        Arguments from user
+
+    """
     parser = argparse.ArgumentParser(
         description="full_hand_eye.py [-h] [--eih] [--eth] [--ip <IP address>]",
         formatter_class=argparse.RawTextHelpFormatter,
@@ -79,7 +85,7 @@ def _initialize_robot_sync(host: str, port: int):
         Package containing the specific input data registers
 
     Raises:
-        RuntimeError: If computer is not able to establish comminucation with robot
+        RuntimeError: If computer is not able to establish communication with robot
     """
 
     conf = rtde_config.ConfigFile(Path(Path.cwd() / "robot_communication_file.xml"))
