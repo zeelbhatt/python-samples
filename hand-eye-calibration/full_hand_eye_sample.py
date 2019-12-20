@@ -155,6 +155,7 @@ def _get_frame_and_transform_matrix(con: rtde, cam: zivid.Camera):
     Args:
         con: Connection between computer and robot
         cam: Zivid camera
+
     Returns:
         Zivid frame
         4x4 tranformation matrix
@@ -178,13 +179,13 @@ def _set_camera_settings(cam: zivid.Camera):
     Args:
         cam: Zivid camera
     """
-
-    settings = cam.settings
-    settings.iris = 20
-    settings.exposure_time = datetime.timedelta(microseconds=10000)
-    settings.gain = 1
-    settings.brightness = 1.0
-    settings.filters.gaussian.enabled = 1
+    with cam.update_settings() as updater:
+        updater.settings.iris = 20
+        updater.settings.exposure_time = datetime.timedelta(microseconds=10000)
+        updater.settings.filters.reflection.enabled = True
+        updater.settings.brightness = 1.0
+        updater.settings.filters.gaussian.enabled = 1
+        updater.settings.gain = 1
 
 
 def _read_robot_state(con: rtde):
@@ -339,7 +340,7 @@ def _capture_one_frame_and_robot_pose(
     """
 
     frame, transform = _get_frame_and_transform_matrix(con, cam)
-    _verify_good_capture(frame)
+    # _verify_good_capture(frame)
 
     # Signal robot to move to next position, then set signal to low again.
     _write_robot_state(
@@ -487,19 +488,19 @@ def _main():
 
     user_options = _options()
 
-    robot_IP_address = user_options.ip
-    # robot_IP_address = "192.168.1.246"
+    robot_ip_address = user_options.ip
+    # robot_ip_address = "192.168.1.246"
     port = 30004
-    con, input_data = _initialize_robot_sync(robot_IP_address, port)
+    con, input_data = _initialize_robot_sync(robot_ip_address, port)
     con.send_start()
 
     dataset_dir = _generate_dataset(con, input_data)
 
     calib_type = user_options.mode
 
-    if calib_type == "eih" or calib_type == "eye-in-hand":
+    if calib_type in ["eih", "eye-in-hand"]:
         transform, residuals = perform_hand_eye_calibration("eye-in-hand", dataset_dir)
-    elif calib_type == "eth" or calib_type == "eye-to-hand":
+    elif calib_type in ["eth", "eye-to-hand"]:
         transform, residuals = perform_hand_eye_calibration("eye-to-hand", dataset_dir)
 
     _save_hand_eye_results(dataset_dir, transform, residuals)
