@@ -33,7 +33,7 @@ def _options():
         Arguments from user
 
     """
-    parser = argparse.ArgumentParser(description="Perform Hand-Eye calibration")
+    parser = argparse.ArgumentParser(description=__doc__)
     mode_group = parser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument(
         "--eih", "--eye-in-hand", action="store_true", help="eye-in-hand calibration"
@@ -69,7 +69,6 @@ def _initialize_robot_sync(host: str):
 
     Args:
         host: IP address
-        port: Port number
 
     Returns:
         Connection to robot
