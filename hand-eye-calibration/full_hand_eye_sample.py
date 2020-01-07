@@ -20,7 +20,7 @@ import datetime
 
 import cv2
 import numpy as np
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation
 import zivid
 import rtde.rtde as rtde
 import rtde.rtde_config as rtde_config
@@ -33,17 +33,15 @@ def _options():
         Arguments from user
 
     """
-    parser = argparse.ArgumentParser(
-        description="full_hand_eye.py [-h] [--eih] [--eth] [--ip <IP address>]",
-        formatter_class=argparse.RawTextHelpFormatter,
+    parser = argparse.ArgumentParser(description="Perform Hand-Eye calibration")
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument(
+        "--eih", "--eye-in-hand", action="store_true", help="eye-in-hand calibration"
     )
-    parser.add_argument(
-        "--mode",
-        help="Type of calibration",
-        choices=["eih", "eye-in-hand", "eth", "eye-to-hand"],
-        required=True,
+    mode_group.add_argument(
+        "--eth", "--eye-to-hand", action="store_true", help="eye-to-hand calibration"
     )
-    parser.add_argument("--ip", help="IP address to robot", required=True)
+    parser.add_argument("--ip", required=True, help="IP address to robot")
 
     return parser.parse_args()
 
@@ -60,20 +58,13 @@ def _write_robot_state(
         camera_ready: Boolean value to robot_state that camera is ready to capture images
     """
 
-    if finish_capture:
-        input_data.input_bit_register_64 = 1
-    else:
-        input_data.input_bit_register_64 = 0
-
-    if camera_ready:
-        input_data.input_bit_register_65 = 1
-    else:
-        input_data.input_bit_register_65 = 0
+    input_data.input_bit_register_64 = int(finish_capture)
+    input_data.input_bit_register_65 = int(camera_ready)
 
     con.send(input_data)
 
 
-def _initialize_robot_sync(host: str, port: int):
+def _initialize_robot_sync(host: str):
     """Set up communication with UR robot
 
     Args:
@@ -92,7 +83,8 @@ def _initialize_robot_sync(host: str, port: int):
     output_names, output_types = conf.get_recipe("out")
     input_names, input_types = conf.get_recipe("in")
 
-    con = rtde.RTDE(host, port)
+    # port 30004 is reserved for rtde
+    con = rtde.RTDE(host, 30004)
     con.connect()
 
     # To ensure that the application is compatable with further versions of UR controller
@@ -140,9 +132,10 @@ def _generate_folder():
         Directory to where data will be saved
     """
 
-    location_dir = Path(
+    location_dir = (
         Path.cwd() / "datasets" / datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     )
+
     if not location_dir.is_dir():
         location_dir.mkdir(parents=True)
 
@@ -165,9 +158,10 @@ def _get_frame_and_transform_matrix(con: rtde, cam: zivid.Camera):
     robot_pose = np.array(con.receive().actual_TCP_pose)
 
     translation = robot_pose[:3] * 1000
-    rotvec = R.from_rotvec(robot_pose[3:])
+    rotation_vector = robot_pose[3:]
+    rotation = Rotation.from_rotvec(rotation_vector)
     transform = np.eye(4)
-    transform[:3, :3] = rotvec.as_matrix()
+    transform[:3, :3] = rotation.as_matrix()
     transform[:3, 3] = translation.T
 
     return frame, transform
@@ -264,7 +258,7 @@ def _image_count(robot_state):
     return robot_state.output_int_register_24
 
 
-def _start_capture(robot_state):
+def _ready_for_capture(robot_state):
     """Read robot output register 64
 
     Args:
@@ -274,32 +268,6 @@ def _start_capture(robot_state):
         Boolean value that states if camera is ready to capture
     """
     return robot_state.output_bit_register_64
-
-
-def _finish_capture(robot_state):
-    """Read robot input register 64
-
-    Args:
-        robot_state: Robot state
-
-    Returns:
-        Boolean value that states if camera is finished capturing
-    """
-
-    return robot_state.input_bit_register_64
-
-
-def _ready_to_capture(robot_state):
-    """Read robot input register 65
-
-    Args:
-        robot_state: Robot state
-
-    Returns:
-        Boolean value that states if camera is ready to capture
-    """
-
-    return robot_state.input_bit_register_65
 
 
 def _verify_good_capture(frame: zivid.Frame):
@@ -340,7 +308,7 @@ def _capture_one_frame_and_robot_pose(
     """
 
     frame, transform = _get_frame_and_transform_matrix(con, cam)
-    # _verify_good_capture(frame)
+    _verify_good_capture(frame)
 
     # Signal robot to move to next position, then set signal to low again.
     _write_robot_state(
@@ -369,10 +337,10 @@ def _generate_dataset(con: rtde, input_data):
         with app.connect_camera() as cam:
 
             _set_camera_settings(cam)
-            ready_to_capture = True
             save_dir = _generate_folder()
 
-            # Signal robot that camera is ready to capture
+            # Signal robot that camera is ready
+            ready_to_capture = True
             _write_robot_state(
                 con, input_data, finish_capture=False, camera_ready=ready_to_capture
             )
@@ -382,14 +350,14 @@ def _generate_dataset(con: rtde, input_data):
             print(
                 "Initial output robot_states: \n"
                 f"Image count: {_image_count(robot_state)} \n"
-                f"Start capture: {_start_capture(robot_state)}\n"
+                f"Ready for capture: {_ready_for_capture(robot_state)}\n"
             )
 
             images_captured = 1
             while _image_count(robot_state) != -1:
                 robot_state = _read_robot_state(con)
 
-                if _start_capture(robot_state) and images_captured == _image_count(
+                if _ready_for_capture(robot_state) and images_captured == _image_count(
                     robot_state
                 ):
                     print(f"Capture image {_image_count(robot_state)}")
@@ -489,18 +457,14 @@ def _main():
     user_options = _options()
 
     robot_ip_address = user_options.ip
-    # robot_ip_address = "192.168.1.246"
-    port = 30004
-    con, input_data = _initialize_robot_sync(robot_ip_address, port)
+    con, input_data = _initialize_robot_sync(robot_ip_address)
     con.send_start()
 
     dataset_dir = _generate_dataset(con, input_data)
 
-    calib_type = user_options.mode
-
-    if calib_type in ["eih", "eye-in-hand"]:
+    if user_options.eih:
         transform, residuals = perform_hand_eye_calibration("eye-in-hand", dataset_dir)
-    elif calib_type in ["eth", "eye-to-hand"]:
+    else:
         transform, residuals = perform_hand_eye_calibration("eye-to-hand", dataset_dir)
 
     _save_hand_eye_results(dataset_dir, transform, residuals)
